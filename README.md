@@ -1,4 +1,4 @@
-# Projeto Integrador — Grupo 5
+# Projeto Integrador Grupo 5
 ## Cidade Inteligente: Auditoria e Prevenção de Fraudes
 
 ![Status](https://img.shields.io/badge/Status-Em%20desenvolvimento-yellow)
