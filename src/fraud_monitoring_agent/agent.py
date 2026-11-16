@@ -1,6 +1,7 @@
+
 from google.adk.agents import Agent
 from .promptz import PROMPT_FRAUD_AGENT
-from src.tools.sql_search_tool import seach_in_sql
+from ..tools.sql_search_tool import seach_in_sql
 
 root_agent = Agent(
     name="fraud_analysis_agent",

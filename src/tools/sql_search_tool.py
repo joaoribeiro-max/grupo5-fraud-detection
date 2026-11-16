@@ -97,4 +97,4 @@ def seach_in_sql(sql_query:str) -> str:
             "status":"erro_databricks",
             "mensagem":f"Erro ao executar query no Databricks: {str(e)}, revise a sixtaxe ou nome de colunas e tente novamente"
         }, ensure_ascii=False) 
-
+    
