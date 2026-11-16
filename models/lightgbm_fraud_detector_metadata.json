@@ -1,0 +1,26 @@
+{
+    "modelo": "LightGBM",
+    "experimento": "Sem ponderação",
+    "status": "Experimental",
+    "features": [
+        "amount",
+        "type",
+        "destino_eh_comercio",
+        "faixa_valor"
+    ],
+    "limiar_validacao": 0.012455002510276548,
+    "limite_superior_capping": 502605.225,
+    "pontos_corte_binning": [
+        9927.512,
+        36577.71599999999,
+        122857.66799999999,
+        247054.06399999998
+    ],
+    "melhor_iteracao": 12,
+    "registros_treinamento": 6082007,
+    "peso_classe_fraudulenta": 1.0,
+    "versoes": {
+        "lightgbm": "4.7.0",
+        "scikit_learn": "1.9.1"
+    }
+}
