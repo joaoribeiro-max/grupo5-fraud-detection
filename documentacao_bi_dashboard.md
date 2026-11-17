@@ -21,14 +21,17 @@ O painel foi estruturado para oferecer uma leitura rápida e executiva (top-down
 1. **Filtro Dinâmico por Turno:**
    * Permite segmentar todas as métricas e gráficos do painel de acordo com o período do dia (ex: Manhã, Tarde, Noite, Madrugada ou *All*), facilitando a identificação de janelas de maior risco.
 
-2. **Volume Financeiro x Tipos de Transações (Gráfico de Colunas):**
+2. **Tipos de Contas:**
+  * Permite segmentar todas as métricas e gráficos do painel de acordo com o tipo de conta de destino (ex: Cliente, Comércio ou *All*), facilitando a identificação de dados relacionados a essas tipagens de conta.
+  
+3. **Volume Financeiro x Tipos de Transações (Gráfico de Colunas):**
    * Apresenta a distribuição do montante movimentado por modalidade: *Débito* (`227,2 mi`), *Pagamento* (`28,09 bi`), *Depósito* (`236,37 bi`), *Saque* (`394,41 bi`) e *Transferência* (`485,29 bi`).
 
-3. **Fraudes por Tipos de Transações (Gráfico de Colunas Agrupadas):**
+4. **Fraudes por Tipos de Transações (Gráfico de Colunas Agrupadas):**
    * Compara lado a lado o volume financeiro de operações **Legítimas** (azul) versus **Fraudulentas** (rosa/vermelho) em cada categoria.
    * **Insight principal:** As fraudes financeiras concentram-se quase exclusivamente nas modalidades de **Saque** (`R$ 5,99 bi`) e **Transferência** (`R$ 6,07 bi`), enquanto operações como Pagamento e Depósito apresentam impacto financeiro de fraude praticamente nulo.
 
-4. **Transações por Dia (Gráfico de Linhas):**
+5. **Transações por Dia (Gráfico de Linhas):**
    * Acompanha a série histórica diária (Dias 1 a 31) comparando o comportamento das transações legítimas e fraudulentas, permitindo identificar anomalias, picos de ataque e quedas bruscas no fluxo normal.
 
 ---
@@ -37,7 +40,7 @@ O painel foi estruturado para oferecer uma leitura rápida e executiva (top-down
 
 * **Fonte de Dados (Camada Gold):** O dashboard consome diretamente um dataset refinado da camada **Gold** (arquitetura Medalhão), garantindo que os dados já estejam limpos, agregados e otimizados para performance analítica.
 * **Padronização e Tratamento (Coluna Calculada):** 
-  * Para garantir uma apresentação executiva clara e em português nos eixos e legendas dos gráficos, foi criada uma **coluna calculada** para tratar e traduzir os tipos de transação originais do banco de dados (ex: padronizando termos técnicos/em inglês para *Transferência*, *Saque*, *Depósito*, *Pagamento* e *Débito*).
+  * Para garantir uma apresentação executiva clara e em português nos eixos e legendas dos gráficos, foi criada algumas **colunas calculadas** para tratar e traduzir os tipos de transação originais do banco de dados (ex: padronizando termos técnicos/em inglês para *Transferência*, *Saque*, *Depósito*, *Pagamento* e *Débito*).
   * O mesmo tratamento semântico foi aplicado para categorizar o status das operações entre **Legítima** e **Fraudulenta**.
 
 ---
