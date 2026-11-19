@@ -21,17 +21,20 @@ O painel foi estruturado para oferecer uma leitura rápida e executiva (top-down
 1. **Filtro Dinâmico por Turno:**
    * Permite segmentar todas as métricas e gráficos do painel de acordo com o período do dia (ex: Manhã, Tarde, Noite, Madrugada ou *All*), facilitando a identificação de janelas de maior risco.
 
-2. **Tipos de Contas:**
+2. **Filtro Dinâmico por Tipos de Contas Destino:**
   * Permite segmentar todas as métricas e gráficos do painel de acordo com o tipo de conta de destino (ex: Cliente, Comércio ou *All*), facilitando a identificação de dados relacionados a essas tipagens de conta.
   
 3. **Volume Financeiro x Tipos de Transações (Gráfico de Colunas):**
    * Apresenta a distribuição do montante movimentado por modalidade: *Débito* (`227,2 mi`), *Pagamento* (`28,09 bi`), *Depósito* (`236,37 bi`), *Saque* (`394,41 bi`) e *Transferência* (`485,29 bi`).
 
-4. **Fraudes por Tipos de Transações (Gráfico de Colunas Agrupadas):**
+4. **Valor financeiro Retido/Protegido (Gráfico de Colunas Agrupadas Horizontais):**
+   * Apresenta a distribuição do montante total de exposição financeira por tipos: *Exposição Residual em Análise* (`221,9 mi`), *Valor Retido (Bloqueio Preventivo)* (`11,83 bi`).
+
+5. **Fraudes por Tipos de Transações (Gráfico de Colunas Agrupadas):**
    * Compara lado a lado o volume financeiro de operações **Legítimas** (azul) versus **Fraudulentas** (rosa/vermelho) em cada categoria.
    * **Insight principal:** As fraudes financeiras concentram-se quase exclusivamente nas modalidades de **Saque** (`R$ 5,99 bi`) e **Transferência** (`R$ 6,07 bi`), enquanto operações como Pagamento e Depósito apresentam impacto financeiro de fraude praticamente nulo.
 
-5. **Transações por Dia (Gráfico de Linhas):**
+6. **Transações por Dia (Gráfico de Linhas):**
    * Acompanha a série histórica diária (Dias 1 a 31) comparando o comportamento das transações legítimas e fraudulentas, permitindo identificar anomalias, picos de ataque e quedas bruscas no fluxo normal.
 
 ---
@@ -47,9 +50,9 @@ O painel foi estruturado para oferecer uma leitura rápida e executiva (top-down
 
 ## 🚀 Como Utilizar
 
-1. Faça o download do arquivo do dashboard (`.pbix` / `.twb` / template correspondente) disponível neste repositório.
-2. Caso necessário, atualize o caminho da fonte de dados apontando para a tabela **Gold** do seu ambiente.
-3. Utilize o seletor de **Turno** no topo do painel para explorar os recortes temporais.
+1. Acesse o Link disponível no Databricks para acesso do dashboard > https://dbc-97bd1f30-bee3.cloud.databricks.com/dashboardsv3/01f1e07c867b14f5b20870bf665632e9/published?o=7474645444335671
+2. Caso deseje, abrindo o dashboard pode clicar nos três pontos e fazer download do PDF
+
 
 ---
 
