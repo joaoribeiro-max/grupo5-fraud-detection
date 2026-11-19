@@ -1,10 +1,16 @@
-﻿"""Preparacao e validacao das features da Gold ML para LightGBM V2."""
+
+"""Preparação e validação das features da Gold ML para LightGBM V2."""
 
 import numpy as np
 import pandas as pd
 
+
 TARGET_COLUMN = "eh_fraude"
 
+# Identificação da operação, não utilizada no treinamento.
+IDENTIFIER_COLUMNS = ["id_transacao", "step"]
+
+# Features selecionadas para o primeiro experimento da V2.
 FEATURE_COLUMNS = [
     "valor",
     "eh_pagamento",
@@ -27,98 +33,155 @@ BINARY_COLUMNS = [
     "destino_eh_comercio",
 ]
 
+REQUIRED_COLUMNS = FEATURE_COLUMNS + [TARGET_COLUMN]
+
 
 def validar_gold_ml(data: pd.DataFrame) -> None:
-    """Valida os dados antes da preparacao das features."""
+    """Valida os campos necessários antes do treinamento."""
 
     if not isinstance(data, pd.DataFrame):
         raise TypeError("A entrada deve ser um DataFrame.")
 
     if data.empty:
-        raise ValueError("A base esta vazia.")
+        raise ValueError("A base recebida está vazia.")
 
     if data.columns.duplicated().any():
-        raise ValueError("Existem colunas duplicadas.")
+        raise ValueError("Existem nomes de colunas duplicados.")
 
-    obrigatorias = FEATURE_COLUMNS + [TARGET_COLUMN]
-    ausentes = set(obrigatorias) - set(data.columns)
+    ausentes = set(REQUIRED_COLUMNS) - set(data.columns)
 
     if ausentes:
-        raise ValueError(f"Colunas ausentes: {sorted(ausentes)}")
+        raise ValueError(
+            f"Colunas obrigatórias ausentes: {sorted(ausentes)}"
+        )
 
-    for coluna in obrigatorias:
-        valores = pd.to_numeric(data[coluna], errors="coerce")
+    for column in REQUIRED_COLUMNS:
+        valores = pd.to_numeric(data[column], errors="coerce")
 
         if valores.isna().any():
-            raise ValueError(f"Valores ausentes ou invalidos: {coluna}")
+            raise ValueError(
+                f"A coluna {column} possui valores ausentes ou inválidos."
+            )
 
         if not np.isfinite(valores.to_numpy(dtype=float)).all():
-            raise ValueError(f"Valores nao finitos: {coluna}")
+            raise ValueError(
+                f"A coluna {column} possui valores não finitos."
+            )
 
-    if (data["valor"].astype(float) < 0).any():
+    if (pd.to_numeric(data["valor"]) < 0).any():
         raise ValueError("Existem valores financeiros negativos.")
 
-    for coluna in BINARY_COLUMNS + [TARGET_COLUMN]:
-        if not data[coluna].isin([0, 1]).all():
-            raise ValueError(f"{coluna} deve conter somente 0 ou 1.")
+    # Verificação das variáveis binárias.
+    for column in BINARY_COLUMNS + [TARGET_COLUMN]:
+        valores = pd.to_numeric(data[column])
 
-    tipos = data[
-        ["eh_pagamento", "eh_deposito", "eh_debito",
-         "eh_saque", "eh_transferencia"]
-    ].sum(axis=1)
+        if not valores.isin([0, 1]).all():
+            raise ValueError(
+                f"A coluna {column} deve conter somente 0 ou 1."
+            )
 
-    if not tipos.eq(1).all():
-        raise ValueError("Existem tipos de transacao inconsistentes.")
+    # Cada transação deve possuir exatamente um tipo.
+    soma_tipos = data[
+        [
+            "eh_pagamento",
+            "eh_deposito",
+            "eh_debito",
+            "eh_saque",
+            "eh_transferencia",
+        ]
+    ].apply(pd.to_numeric).sum(axis=1)
 
-    recebimentos = data["qtd_recebimentos_anterior"]
+    if not soma_tipos.eq(1).all():
+        raise ValueError(
+            "Existem transações com tipos inválidos ou múltiplos."
+        )
+
+    recebimentos = pd.to_numeric(
+        data["qtd_recebimentos_anterior"]
+    )
 
     if (recebimentos < 0).any():
-        raise ValueError("Quantidade de recebimentos negativa.")
+        raise ValueError(
+            "qtd_recebimentos_anterior não pode ser negativo."
+        )
 
-    if not (recebimentos % 1 == 0).all():
-        raise ValueError("Quantidade de recebimentos deve ser inteira.")
+    # Essas features são contagens e precisam ser inteiras.
+    if not np.equal(recebimentos % 1, 0).all():
+        raise ValueError(
+            "qtd_recebimentos_anterior deve conter números inteiros."
+        )
 
-    if not data["hora_do_dia"].between(0, 23).all():
-        raise ValueError("Hora do dia fora do intervalo 0-23.")
+    hora = pd.to_numeric(data["hora_do_dia"])
+    dia = pd.to_numeric(data["dia_semana"])
 
-    if not data["dia_semana"].between(1, 7).all():
-        raise ValueError("Dia da semana fora do intervalo 1-7.")
+    if not hora.between(0, 23).all():
+        raise ValueError("hora_do_dia deve estar entre 0 e 23.")
+
+    if not dia.between(1, 7).all():
+        raise ValueError("dia_semana deve estar entre 1 e 7.")
 
 
 def preparar_features_gold_ml(
     data: pd.DataFrame,
 ) -> tuple[pd.DataFrame, pd.Series]:
-    """Separa as dez features do alvo de fraude."""
+    """
+    Valida a Gold ML e separa as features do alvo.
+
+    Retorna:
+        X: matriz numérica utilizada pelo LightGBM.
+        y: rótulo histórico de fraude.
+    """
 
     validar_gold_ml(data)
 
     X = data[FEATURE_COLUMNS].copy()
 
-    X["valor"] = X["valor"].astype("float64")
+    # Tipagem numérica explícita.
+    X["valor"] = pd.to_numeric(
+        X["valor"]
+    ).astype("float64")
 
-    for coluna in BINARY_COLUMNS:
-        X[coluna] = X[coluna].astype("int8")
+    for column in BINARY_COLUMNS:
+        X[column] = pd.to_numeric(
+            X[column]
+        ).astype("int8")
 
-    X["qtd_recebimentos_anterior"] = (
-        X["qtd_recebimentos_anterior"].astype("int64")
-    )
+    X["qtd_recebimentos_anterior"] = pd.to_numeric(
+        X["qtd_recebimentos_anterior"]
+    ).astype("int64")
 
-    X["hora_do_dia"] = X["hora_do_dia"].astype("int8")
-    X["dia_semana"] = X["dia_semana"].astype("int8")
+    X["hora_do_dia"] = pd.to_numeric(
+        X["hora_do_dia"]
+    ).astype("int8")
 
-    y = data[TARGET_COLUMN].astype("int8").rename(TARGET_COLUMN)
+    X["dia_semana"] = pd.to_numeric(
+        X["dia_semana"]
+    ).astype("int8")
+
+    # O alvo é separado e nunca entra em X.
+    y = pd.to_numeric(
+        data[TARGET_COLUMN]
+    ).astype("int8").rename(TARGET_COLUMN)
+
+    if list(X.columns) != FEATURE_COLUMNS:
+        raise RuntimeError(
+            "A ordem das features não corresponde ao contrato da V2."
+        )
 
     if TARGET_COLUMN in X.columns:
-        raise RuntimeError("Vazamento do alvo detectado.")
+        raise RuntimeError("Vazamento do alvo detectado em X.")
 
     return X, y
 
 
-def resumo_gold_ml(X: pd.DataFrame, y: pd.Series) -> dict:
-    """Resume a base preparada para treinamento."""
+def resumo_gold_ml(
+    X: pd.DataFrame,
+    y: pd.Series,
+) -> dict:
+    """Produz um resumo da base preparada."""
 
     if len(X) != len(y):
-        raise ValueError("X e y possuem tamanhos diferentes.")
+        raise ValueError("X e y possuem quantidades diferentes de registros.")
 
     total = len(y)
     fraudes = int(y.sum())

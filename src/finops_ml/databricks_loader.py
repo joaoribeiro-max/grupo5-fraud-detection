@@ -66,11 +66,32 @@ def _connect():
 
 def _select_columns() -> str:
     """Retorna as colunas autorizadas para leitura."""
+
     return ", ".join(COLUMNS)
 
 
+def _arrow_to_dataframe(
+    arrow_batch,
+    expected_columns: list[str],
+) -> pd.DataFrame:
+    """Converte um lote Arrow para DataFrame e valida as colunas."""
+
+    if arrow_batch is None or arrow_batch.num_rows == 0:
+        return pd.DataFrame(columns=expected_columns)
+
+    dataframe = arrow_batch.to_pandas()
+
+    if list(dataframe.columns) != expected_columns:
+        raise RuntimeError(
+            "As colunas recebidas do Databricks "
+            "não correspondem ao contrato esperado."
+        )
+
+    return dataframe
+
+
 def fetch_gold_ml_sample(limit: int = 5) -> pd.DataFrame:
-    """Busca uma amostra da tabela Gold ML."""
+    """Busca uma pequena amostra da tabela Gold ML."""
 
     if not isinstance(limit, int) or not 1 <= limit <= 1000:
         raise ValueError("O limite deve estar entre 1 e 1000.")
@@ -98,6 +119,7 @@ def fetch_gold_ml_sample(limit: int = 5) -> pd.DataFrame:
     finally:
         if cursor is not None:
             cursor.close()
+
         if connection is not None:
             connection.close()
 
@@ -105,11 +127,13 @@ def fetch_gold_ml_sample(limit: int = 5) -> pd.DataFrame:
 def iter_gold_ml_batches(
     start_step: int,
     end_step: int,
-    batch_size: int = 100_000,
+    batch_size: int = 10_000,
 ) -> Iterator[pd.DataFrame]:
     """
-    Lê a Gold ML em lotes, respeitando o intervalo temporal.
-    Evita carregar toda a tabela na memória de uma só vez.
+    Lê a Gold ML em lotes utilizando PyArrow.
+
+    Filtra o intervalo temporal para evitar consultas
+    desnecessariamente grandes.
     """
 
     if not isinstance(start_step, int) or not isinstance(end_step, int):
@@ -118,8 +142,8 @@ def iter_gold_ml_batches(
     if start_step < 1 or end_step < start_step:
         raise ValueError("Intervalo temporal inválido.")
 
-    if not 1 <= batch_size <= 500_000:
-        raise ValueError("Batch size deve estar entre 1 e 500000.")
+    if not 1 <= batch_size <= 50_000:
+        raise ValueError("Batch size deve estar entre 1 e 50000.")
 
     query = f"""
         SELECT {_select_columns()}
@@ -136,54 +160,72 @@ def iter_gold_ml_batches(
         cursor.execute(query)
 
         while True:
-            rows = cursor.fetchmany(batch_size)
+            arrow_batch = cursor.fetchmany_arrow(batch_size)
 
-            if not rows:
+            if arrow_batch is None or arrow_batch.num_rows == 0:
                 break
 
-            yield pd.DataFrame(rows, columns=COLUMNS)
+            yield _arrow_to_dataframe(
+                arrow_batch,
+                COLUMNS,
+            )
 
     finally:
         if cursor is not None:
             cursor.close()
+
         if connection is not None:
             connection.close()
 
+
 def iter_gold_ml_training_sample(
-    batch_size: int = 10_000,
+    batch_size: int = 5_000,
     normal_sample_pct: int = 2,
 ) -> Iterator[pd.DataFrame]:
     """
-    Extrai o treino preservando todas as fraudes e amostrando
-    deterministicamente uma parcela das transações normais.
+    Extrai o conjunto de treinamento preservando todas as fraudes
+    e amostrando deterministicamente as transações normais.
 
-    sample_weight corrige a probabilidade de seleção:
-    1 para fraudes e 100/pct para transações normais.
+    sample_weight:
+        Fraudes: 1
+        Normais: 100 / normal_sample_pct
+
+    A amostragem ocorre diretamente no Databricks.
     """
+
+    if not isinstance(normal_sample_pct, int):
+        raise TypeError("O percentual deve ser inteiro.")
 
     if not 1 <= normal_sample_pct <= 100:
         raise ValueError("Percentual deve estar entre 1 e 100.")
 
-    if not 1 <= batch_size <= 50_000:
-        raise ValueError("Batch size deve estar entre 1 e 50000.")
+    if not isinstance(batch_size, int) or not 1 <= batch_size <= 10_000:
+        raise ValueError("Batch size deve estar entre 1 e 10000.")
 
     peso_normal = 100.0 / normal_sample_pct
 
     query = f"""
         SELECT
             {_select_columns()},
+
             CASE
                 WHEN eh_fraude = 1 THEN 1.0
                 ELSE {peso_normal}
             END AS sample_weight
+
         FROM {TABLE}
+
         WHERE step BETWEEN 1 AND 520
+
           AND (
               eh_fraude = 1
+
               OR (
                   eh_fraude = 0
-                  AND pmod(xxhash64(id_transacao), 100)
-                      < {normal_sample_pct}
+                  AND pmod(
+                      xxhash64(id_transacao),
+                      100
+                  ) < {normal_sample_pct}
               )
           )
     """
@@ -191,23 +233,33 @@ def iter_gold_ml_training_sample(
     connection = None
     cursor = None
 
+    expected_columns = COLUMNS + ["sample_weight"]
+
     try:
         connection = _connect()
         cursor = connection.cursor()
+
+        print(
+            "Consultando amostra de treinamento no Databricks...",
+            flush=True,
+        )
+
         cursor.execute(query)
 
-        columns = COLUMNS + ["sample_weight"]
-
         while True:
-            rows = cursor.fetchmany(batch_size)
+            arrow_batch = cursor.fetchmany_arrow(batch_size)
 
-            if not rows:
+            if arrow_batch is None or arrow_batch.num_rows == 0:
                 break
 
-            yield pd.DataFrame(rows, columns=columns)
+            yield _arrow_to_dataframe(
+                arrow_batch,
+                expected_columns,
+            )
 
     finally:
         if cursor is not None:
             cursor.close()
+
         if connection is not None:
             connection.close()
