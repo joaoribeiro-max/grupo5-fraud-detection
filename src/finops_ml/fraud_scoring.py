@@ -1,4 +1,4 @@
-﻿
+
 """MÃ³dulo de scoring antifraude â€” Grupo 5.
 
 Modelo: LightGBM sem ponderaÃ§Ã£o.
@@ -12,6 +12,7 @@ no notebook com duas casas decimais. Para reproduÃ§Ã£o exata, devemos
 substituÃ­-los pelos valores completos salvos no treinamento.
 """
 import json
+import logging
 import joblib
 from pathlib import Path
 from dataclasses import dataclass
@@ -20,15 +21,17 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+logger = logging.getLogger(__name__)
+
 
 # ParÃ¢metros do notebook 02_preparacao_e_modelagem.ipynb
 LIMITE_SUPERIOR_AMOUNT = 502605.225
 
 PONTOS_CORTE_AMOUNT = (
-    9927.51,
-    36577.72,
-    122857.67,
-    247054.06,
+    9927.512,
+    36577.71599999999,
+    122857.66799999999,
+    247054.06399999998,
 )
 
 LIMIAR_LIGHTGBM = 0.012455002510276548
@@ -420,9 +423,6 @@ def load_model_artifacts(
                 "O modelo salvo possui features incompatÃ­veis."
             )
 
-    print("Modelo LightGBM carregado.")
-    print("Limiar:", config.threshold)
-    print("Capping:", config.amount_cap_upper)
-    print("Features:", list(COLUNAS_MODELO))
+    logger.info("Modelo LightGBM carregado; limiar=%s, capping=%s, features=%s", config.threshold, config.amount_cap_upper, list(COLUNAS_MODELO))
 
     return modelo, config, metadata

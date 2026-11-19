@@ -5,17 +5,20 @@ venv/
 # Dataset original
 data/raw/*.csv
 
-# Cache e arquivos temporários Python
+# Cache e arquivos temporÃ¡rios Python
 __pycache__/
 *.py[cod]
 
-# Configurações locais
+# ConfiguraÃ§Ãµes locais
 .env
 .vscode/
 
-# Arquivos temporários do Jupyter
+# Arquivos temporÃ¡rios do Jupyter
 .ipynb_checkpoints/
 
 # Arquivos do sistema operacional
 .DS_Store
 Thumbs.db
+# Sessões, artefatos locais do ADK e dados exportados
+**/.adk/
+exports/
