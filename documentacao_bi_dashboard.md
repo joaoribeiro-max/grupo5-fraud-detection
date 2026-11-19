@@ -22,7 +22,7 @@ O painel foi estruturado para oferecer uma leitura rápida e executiva (top-down
    * Permite segmentar todas as métricas e gráficos do painel de acordo com o período do dia (ex: Manhã, Tarde, Noite, Madrugada ou *All*), facilitando a identificação de janelas de maior risco.
 
 2. **Filtro Dinâmico por Tipos de Contas Destino:**
-  * Permite segmentar todas as métricas e gráficos do painel de acordo com o tipo de conta de destino (ex: Cliente, Comércio ou *All*), facilitando a identificação de dados relacionados a essas tipagens de conta.
+   * Permite segmentar todas as métricas e gráficos do painel de acordo com o tipo de conta de destino (ex: Cliente, Comércio ou *All*), facilitando a identificação de dados relacionados a essas tipagens de conta.
   
 3. **Volume Financeiro x Tipos de Transações (Gráfico de Colunas):**
    * Apresenta a distribuição do montante movimentado por modalidade: *Débito* (`227,2 mi`), *Pagamento* (`28,09 bi`), *Depósito* (`236,37 bi`), *Saque* (`394,41 bi`) e *Transferência* (`485,29 bi`).
