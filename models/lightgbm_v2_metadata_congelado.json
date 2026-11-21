@@ -46,7 +46,7 @@
     "fraudes_validacao": 1180,
     "average_precision_validacao": 0.5487755608402227,
     "roc_auc_validacao": 0.9747777334743153,
-    "observacao": "Modelo candidato. Avaliacao final no conjunto de teste pendente.",
+    "observacao": "Modelo congelado. Avaliacao independente concluida no conjunto de teste; scoring operacional persistido e cobertura integral auditada.",
     "selecao_limiar": {
         "criterio": "Maximizacao do F1 na validacao",
         "limiar_candidato": 0.08341406734582016,
@@ -58,8 +58,8 @@
         "falsos_negativos": 556,
         "verdadeiros_positivos": 624,
         "total_alertas": 1282,
-        "status_teste": "Reservado para avaliacao final",
-        "classificacao": "Limiar candidato"
+        "status_teste": "Avaliacao independente concluida; teste preservado para avaliacao, sem ajuste posterior do limiar.",
+        "classificacao": "Limiar selecionado exclusivamente na validacao; mantido no teste."
     },
     "congelamento": {
         "status": "CONGELADO",
@@ -71,8 +71,95 @@
         "precision_validacao": 0.4867,
         "recall_validacao": 0.5288,
         "f1_validacao": 0.5069,
-        "status_teste": "Reservado para avaliacao independente",
+        "status_teste": "Avaliacao independente concluida",
         "arquivo_modelo": "lightgbm_v2_modelo_congelado.txt",
         "sha256_modelo": "29f183255645bbcdef16c96ca802f02d121476548a18e224cad82298e488c076"
+    },
+    "avaliacao_teste": {
+        "status": "CONCLUIDA",
+        "origem": "workspace.ml_experiments.gbm_v2_teste_gold_corrigida",
+        "total_transacoes": 89466,
+        "total_fraudes": 1252,
+        "total_normais": 88214,
+        "limiar_aplicado": 0.08341406734582016,
+        "precision": 0.778195,
+        "recall": 0.496006,
+        "f1_score": 0.605854,
+        "average_precision": 0.659264,
+        "roc_auc": 0.970289,
+        "matriz_confusao": {
+            "verdadeiros_positivos": 621,
+            "falsos_positivos": 177,
+            "verdadeiros_negativos": 88037,
+            "falsos_negativos": 631
+        }
+    },
+    "auditoria_dados": {
+        "status": "CONCLUIDA_COM_RESSALVA_DE_PARTICAO_DIARIA",
+        "treino": {
+            "registros": 127396,
+            "fraudes": 5781,
+            "normais": 121615,
+            "step_min": 1,
+            "step_max": 520,
+            "dia_min": 0,
+            "dia_max": 21,
+            "sample_weight_fraude": 1.0,
+            "sample_weight_normal": 50.0
+        },
+        "validacao": {
+            "registros": 191147,
+            "fraudes": 1180,
+            "normais": 189967,
+            "step_min": 521,
+            "step_max": 631,
+            "dia_min": 21,
+            "dia_max": 26,
+            "sample_weight": 1.0
+        },
+        "teste": {
+            "registros": 89466,
+            "fraudes": 1252,
+            "normais": 88214,
+            "step_min": 632,
+            "step_max": 743,
+            "dia_min": 26,
+            "dia_max": 30,
+            "sample_weight": 1.0
+        },
+        "ids_duplicados_internos": 0,
+        "ids_sobrepostos_entre_conjuntos": 0,
+        "dias_compartilhados": {
+            "21": {
+                "treino": 526,
+                "validacao": 35466
+            },
+            "26": {
+                "validacao": 222,
+                "teste": 8356
+            }
+        },
+        "observacao": "Divisao cronologica por step, nao por dia completo. Nao houve sobreposicao de IDs nem de steps entre conjuntos."
+    },
+    "scoring_operacional": {
+        "status": "CONCLUIDO_E_AUDITADO",
+        "tabela_resultados": "workspace.ml_experiments.gbm_v2_scoring_resultados",
+        "tabela_staging": "workspace.ml_experiments.gbm_v2_scoring_staging",
+        "total_transacoes_persistidas": 89466,
+        "ids_unicos": 89466,
+        "duplicados": 0,
+        "sem_score": 0,
+        "fora_do_teste": 0,
+        "total_alertas": 798,
+        "exposicao_financeira_sinalizada": 2190234127.6800046,
+        "sha256_modelo": "29f183255645bbcdef16c96ca802f02d121476548a18e224cad82298e488c076",
+        "nota": "Execucao sequencial em lote validada. Concorrencia de multiplos executores nao foi testada. Exposicao expressa na unidade de valor do dataset PaySim; moeda nao foi confirmada.",
+        "registros_pendentes_staging_run_final": 0,
+        "runs_de_persistencia": [
+            "5565f64d-a6ee-4aaf-ae79-a3188290fddc",
+            "8127ed60-5f2c-4ea6-913c-ad53024b432e",
+            "6de55259-67a5-46af-9e60-c564c8871d60",
+            "81c4f4c9-eb41-4e73-b0a4-871a42ee9061"
+        ]
     }
 }
