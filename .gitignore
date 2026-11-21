@@ -20,3 +20,18 @@ __pycache__/
 .DS_Store
 Thumbs.db
 data/processed/
+
+# Arquivos temporários da integração LightGBM V2
+/_integracao/
+/_backup_lightgbm_v2_*/
+
+# Pacote ZIP utilizado na integração
+/integracao_lightgbm_v2_pacote_limpo.zip
+
+# Cópia temporária do carregador
+/databricks_loader_v2.py
+
+# Cache dos testes
+.pytest_cache/
+# Backup local do carregador antigo
+/src/finops_ml/databricks_loader_backup.py

@@ -1,214 +1,195 @@
-﻿
-"""MÃ³dulo de scoring antifraude â€” Grupo 5.
+"""Scoring antifraude com o modelo LightGBM V2 congelado do Grupo 5.
 
-Modelo: LightGBM sem ponderaÃ§Ã£o.
+O modelo recebe exatamente as 10 features registradas nos metadados, na mesma
+ordem. O scoring usa Booster.predict() (probabilidade da classe positiva),
+não predict_proba() / joblib.
 
-A exposiÃ§Ã£o financeira Ã© a soma dos valores originais das transaÃ§Ãµes
-sinalizadas. NÃ£o representa prejuÃ­zo real, perda evitada ou valor recuperado.
-
-ATENÃ‡ÃƒO:
-Os cortes de Binning abaixo foram transcritos dos valores exibidos
-no notebook com duas casas decimais. Para reproduÃ§Ã£o exata, devemos
-substituÃ­-los pelos valores completos salvos no treinamento.
+A exposição financeira é a soma dos valores originais das transações alertadas.
+Ela não representa prejuízo real, perda evitada ou valor recuperado.
 """
+
+from __future__ import annotations
+
+import hashlib
 import json
-import joblib
-from pathlib import Path
+import warnings
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
+import lightgbm as lgb
 import numpy as np
 import pandas as pd
 
 
-# ParÃ¢metros do notebook 02_preparacao_e_modelagem.ipynb
-LIMITE_SUPERIOR_AMOUNT = 502605.225
+MODEL_FILENAME = "lightgbm_v2_modelo_congelado.txt"
+METADATA_FILENAME = "lightgbm_v2_metadata_congelado.json"
+DEFAULT_THRESHOLD = 0.08341406734582016
 
-PONTOS_CORTE_AMOUNT = (
-    9927.51,
-    36577.72,
-    122857.67,
-    247054.06,
-)
-
-LIMIAR_LIGHTGBM = 0.012455002510276548
-
-TIPOS_TRANSACAO = (
-    "CASH_IN",
-    "CASH_OUT",
-    "DEBIT",
-    "PAYMENT",
-    "TRANSFER",
-)
-
-COLUNAS_MODELO = (
-    "amount",
-    "type",
+MODEL_FEATURES: tuple[str, ...] = (
+    "valor",
+    "eh_pagamento",
+    "eh_deposito",
+    "eh_debito",
+    "eh_saque",
+    "eh_transferencia",
     "destino_eh_comercio",
-    "faixa_valor",
+    "qtd_recebimentos_destino_hist",
+    "qtd_recebimentos_destino_24h",
+    "hora_do_dia",
 )
+
+BINARY_FEATURES: tuple[str, ...] = (
+    "eh_pagamento",
+    "eh_deposito",
+    "eh_debito",
+    "eh_saque",
+    "eh_transferencia",
+    "destino_eh_comercio",
+)
+
+COUNT_FEATURES: tuple[str, ...] = (
+    "qtd_recebimentos_destino_hist",
+    "qtd_recebimentos_destino_24h",
+)
+
+# Conversão opcional da coluna bruta `type` para as flags do contrato V2.
+TRANSACTION_TYPE_TO_FLAG = {
+    "PAYMENT": "eh_pagamento",
+    "CASH_IN": "eh_deposito",
+    "DEBIT": "eh_debito",
+    "CASH_OUT": "eh_saque",
+    "TRANSFER": "eh_transferencia",
+}
 
 
 @dataclass(frozen=True)
 class FraudScoringConfig:
-    """ConfiguraÃ§Ãµes do prÃ©-processamento e classificaÃ§Ã£o."""
+    """Configuração aplicada no scoring."""
 
-    amount_cap_upper: float = LIMITE_SUPERIOR_AMOUNT
-    amount_bin_edges: tuple = PONTOS_CORTE_AMOUNT
-    threshold: float = LIMIAR_LIGHTGBM
+    threshold: float = DEFAULT_THRESHOLD
 
-    def __post_init__(self):
-        if not np.isfinite(self.amount_cap_upper):
-            raise ValueError("Limite de Capping invÃ¡lido.")
-
-        if self.amount_cap_upper <= 0:
-            raise ValueError("Limite de Capping deve ser positivo.")
-
-        if not 0 <= self.threshold <= 1:
-            raise ValueError("O limiar deve estar entre 0 e 1.")
-
-        if tuple(sorted(self.amount_bin_edges)) != self.amount_bin_edges:
-            raise ValueError("Os cortes devem estar em ordem crescente.")
-
-        if len(set(self.amount_bin_edges)) != len(self.amount_bin_edges):
-            raise ValueError("Existem cortes repetidos no Binning.")
+    def __post_init__(self) -> None:
+        if not np.isfinite(self.threshold) or not 0.0 <= self.threshold <= 1.0:
+            raise ValueError("O limiar precisa ser um número entre 0 e 1.")
 
 
-def preparar_features_lightgbm(
-    transacoes: pd.DataFrame,
-    config: FraudScoringConfig | None = None,
-) -> pd.DataFrame:
-    """Prepara as quatro features utilizadas pelo LightGBM.
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
-    Entradas:
-    - amount
-    - type
-    - destino_eh_comercio ou nameDest
 
-    O amount original nÃ£o Ã© alterado.
+def _validar_dataframe(transacoes: pd.DataFrame) -> None:
+    if not isinstance(transacoes, pd.DataFrame):
+        raise TypeError("A entrada deve ser um pandas.DataFrame.")
+    if transacoes.empty:
+        raise ValueError("A base de transações está vazia.")
+    if transacoes.columns.duplicated().any():
+        raise ValueError("A base possui nomes de colunas duplicados.")
+
+
+def preparar_features_lightgbm_v2(transacoes: pd.DataFrame) -> pd.DataFrame:
+    """Prepara e valida as 10 features exigidas pelo LightGBM V2.
+
+    A entrada pode conter `valor` ou, por compatibilidade com dados brutos,
+    `amount`. As cinco flags de tipo podem ser fornecidas diretamente ou
+    derivadas da coluna `type` (PAYMENT/CASH_IN/DEBIT/CASH_OUT/TRANSFER).
+
+    Não são inferidas as contagens históricas/de 24h nem a flag comercial:
+    elas precisam vir da Gold ML com a mesma definição usada no treinamento.
     """
 
-    if not isinstance(transacoes, pd.DataFrame):
-        raise TypeError("A entrada deve ser um DataFrame.")
+    _validar_dataframe(transacoes)
+    data = transacoes.copy()
 
-    if transacoes.empty:
-        raise ValueError("O DataFrame estÃ¡ vazio.")
+    if "valor" not in data.columns and "amount" in data.columns:
+        data["valor"] = data["amount"]
 
-    config = config or FraudScoringConfig()
-
-    ausentes = {"amount", "type"} - set(transacoes.columns)
-
-    if ausentes:
-        raise ValueError(
-            f"Colunas obrigatÃ³rias ausentes: {sorted(ausentes)}"
-        )
-
-    amount = pd.to_numeric(
-        transacoes["amount"],
-        errors="coerce",
-    )
-
-    if amount.isna().any():
-        raise ValueError("Existem valores invÃ¡lidos em amount.")
-
-    if not np.isfinite(amount.to_numpy(dtype=float)).all():
-        raise ValueError("amount possui valores nÃ£o finitos.")
-
-    if (amount < 0).any():
-        raise ValueError("amount nÃ£o pode ser negativo.")
-
-    tipos = (
-        transacoes["type"]
-        .astype("string")
-        .str.strip()
-        .str.upper()
-    )
-
-    if tipos.isna().any():
-        raise ValueError("Existem tipos de transaÃ§Ã£o ausentes.")
-
-    desconhecidos = set(tipos) - set(TIPOS_TRANSACAO)
-
-    if desconhecidos:
-        raise ValueError(
-            f"Tipos de transaÃ§Ã£o nÃ£o reconhecidos: {desconhecidos}"
-        )
-
-    # IdentificaÃ§Ã£o de destinatÃ¡rio comercial.
-    if "destino_eh_comercio" in transacoes.columns:
-
-        destino = pd.to_numeric(
-            transacoes["destino_eh_comercio"],
-            errors="coerce",
-        )
-
-    elif "nameDest" in transacoes.columns:
-
-        destino = (
-            transacoes["nameDest"]
-            .astype("string")
-            .str.startswith("M", na=False)
-            .astype("int8")
-        )
-
-    else:
-        raise ValueError(
-            "Informe destino_eh_comercio ou nameDest."
-        )
-
-    if destino.isna().any() or not destino.isin([0, 1]).all():
-        raise ValueError(
-            "destino_eh_comercio deve conter apenas 0 ou 1."
-        )
-
-    # Capping: utiliza o limite calculado no treinamento.
-    amount_cap = amount.clip(
-        upper=config.amount_cap_upper
-    )
-
-    # Binning: utiliza os cortes calculados no treinamento.
-    limites = [
-        -np.inf,
-        *config.amount_bin_edges,
-        np.inf,
+    # Completa somente as flags ausentes, caso a coluna type esteja disponível.
+    missing_type_flags = [
+        flag for flag in TRANSACTION_TYPE_TO_FLAG.values()
+        if flag not in data.columns
     ]
+    if missing_type_flags:
+        if "type" not in data.columns:
+            raise ValueError(
+                "Flags de tipo ausentes e coluna 'type' não fornecida: "
+                f"{missing_type_flags}"
+            )
 
-    rotulos = [
-        f"faixa_{i}"
-        for i in range(1, len(limites))
-    ]
+        transaction_types = (
+            data["type"].astype("string").str.strip().str.upper()
+        )
+        if transaction_types.isna().any():
+            raise ValueError("A coluna 'type' possui valores ausentes.")
+        unknown_types = sorted(set(transaction_types) - set(TRANSACTION_TYPE_TO_FLAG))
+        if unknown_types:
+            raise ValueError(f"Tipos de transação não reconhecidos: {unknown_types}")
 
-    faixa_valor = pd.cut(
-        amount_cap,
-        bins=limites,
-        labels=rotulos,
-        include_lowest=True,
-    )
+        for transaction_type, flag in TRANSACTION_TYPE_TO_FLAG.items():
+            if flag not in data.columns:
+                data[flag] = transaction_types.eq(transaction_type).astype("int8")
 
-    if faixa_valor.isna().any():
-        raise ValueError("Falha na criaÃ§Ã£o de faixa_valor.")
+    missing = [column for column in MODEL_FEATURES if column not in data.columns]
+    if missing:
+        raise ValueError(
+            "A entrada não atende ao contrato do LightGBM V2. "
+            f"Colunas ausentes: {missing}. Não substitua as contagens "
+            "históricas/de 24h por outras métricas sem confirmar a definição "
+            "usada no treinamento."
+        )
 
-    features = pd.DataFrame(
-        {
-            "amount": amount_cap.astype("float64"),
+    features = data.loc[:, list(MODEL_FEATURES)].copy()
 
-            "type": pd.Categorical(
-                tipos,
-                categories=TIPOS_TRANSACAO,
-            ),
+    for column in MODEL_FEATURES:
+        features[column] = pd.to_numeric(features[column], errors="coerce")
+        values = features[column].to_numpy(dtype="float64")
+        if not np.isfinite(values).all():
+            raise ValueError(f"A feature '{column}' possui valores ausentes, inválidos ou não finitos.")
 
-            "destino_eh_comercio": destino.astype("int8"),
+    if (features["valor"] < 0).any():
+        raise ValueError("A feature 'valor' não pode conter valores negativos.")
 
-            "faixa_valor": pd.Categorical(
-                faixa_valor.astype("string"),
-                categories=rotulos,
-                ordered=True,
-            ),
-        },
-        index=transacoes.index,
-    )
+    for column in BINARY_FEATURES:
+        if not features[column].isin([0, 1]).all():
+            raise ValueError(f"A feature '{column}' deve conter apenas 0 ou 1.")
+        features[column] = features[column].astype("int8")
 
-    return features.loc[:, list(COLUNAS_MODELO)]
+    sum_transaction_types = features[
+        [
+            "eh_pagamento",
+            "eh_deposito",
+            "eh_debito",
+            "eh_saque",
+            "eh_transferencia",
+        ]
+    ].sum(axis=1)
+    if not sum_transaction_types.eq(1).all():
+        raise ValueError("Cada transação deve possuir exatamente um tipo.")
+
+    for column in COUNT_FEATURES:
+        values = features[column]
+        if (values < 0).any():
+            raise ValueError(f"A feature '{column}' não pode ser negativa.")
+        if not np.equal(values.to_numpy(dtype="float64") % 1, 0).all():
+            raise ValueError(f"A feature '{column}' deve conter números inteiros.")
+        features[column] = values.astype("int64")
+
+    hour = features["hora_do_dia"]
+    if not hour.between(0, 23).all():
+        raise ValueError("A feature 'hora_do_dia' deve estar entre 0 e 23.")
+    if not np.equal(hour.to_numpy(dtype="float64") % 1, 0).all():
+        raise ValueError("A feature 'hora_do_dia' deve conter horas inteiras.")
+    features["hora_do_dia"] = hour.astype("int8")
+    features["valor"] = features["valor"].astype("float64")
+
+    if tuple(features.columns) != MODEL_FEATURES:
+        raise RuntimeError("A ordem das features não corresponde ao contrato congelado.")
+
+    return features
 
 
 def score_transactions(
@@ -216,213 +197,134 @@ def score_transactions(
     transacoes: pd.DataFrame,
     config: FraudScoringConfig | None = None,
 ) -> pd.DataFrame:
-    """Classifica transaÃ§Ãµes utilizando o LightGBM treinado.
+    """Calcula o score e gera alertas usando o Booster LightGBM V2."""
 
-    Modelo esperado:
-    experimentos_lgb["Sem ponderaÃ§Ã£o"]["modelo"]
-    """
-
-    if modelo is None or not callable(
-        getattr(modelo, "predict_proba", None)
-    ):
-        raise TypeError(
-            "O modelo deve possuir o mÃ©todo predict_proba."
-        )
+    if modelo is None or not callable(getattr(modelo, "predict", None)):
+        raise TypeError("O modelo precisa disponibilizar o método predict().")
 
     config = config or FraudScoringConfig()
+    features = preparar_features_lightgbm_v2(transacoes)
 
-    features = preparar_features_lightgbm(
-        transacoes,
-        config,
-    )
-
-    # VerificaÃ§Ã£o do contrato de features.
-    nomes_modelo = getattr(modelo, "feature_name_", None)
-
-    if nomes_modelo is None:
-        nomes_modelo = getattr(
-            modelo,
-            "feature_names_in_",
-            None,
-        )
-
-    if nomes_modelo is not None:
-        if list(nomes_modelo) != list(COLUNAS_MODELO):
-            raise ValueError(
-                "As features do modelo nÃ£o correspondem "
-                "Ã s features preparadas."
-            )
-
-    probabilidades = np.asarray(
-        modelo.predict_proba(features)
-    )
-
-    classes = np.asarray(
-        getattr(modelo, "classes_", [0, 1])
-    )
-
-    indices_positivos = np.flatnonzero(classes == 1)
-
-    if probabilidades.ndim != 2 or len(indices_positivos) != 1:
+    model_feature_names = getattr(modelo, "feature_name", None)
+    if callable(model_feature_names):
+        model_feature_names = model_feature_names()
+    if model_feature_names and list(model_feature_names) != list(MODEL_FEATURES):
         raise ValueError(
-            "NÃ£o foi possÃ­vel identificar a classe positiva."
+            "As features do Booster não correspondem ao contrato do LightGBM V2."
         )
 
-    scores = probabilidades[:, int(indices_positivos[0])]
-
+    scores = np.asarray(modelo.predict(features), dtype="float64").reshape(-1)
     if len(scores) != len(transacoes):
-        raise ValueError("Quantidade de previsÃµes incompatÃ­vel.")
-
+        raise ValueError("A quantidade de scores não corresponde à quantidade de transações.")
     if not np.isfinite(scores).all():
-        raise ValueError("O modelo retornou scores nÃ£o finitos.")
+        raise ValueError("O Booster retornou scores não finitos.")
+    if ((scores < 0) | (scores > 1)).any():
+        raise ValueError("O Booster retornou scores fora do intervalo [0, 1].")
 
-    resultado = transacoes.copy()
+    # O valor usado para exposição é o valor original, sem transformação/capping.
+    original_value_column = "valor" if "valor" in transacoes.columns else "amount"
+    if original_value_column not in transacoes.columns:
+        raise ValueError("A entrada precisa conter 'valor' ou 'amount'.")
+    original_values = pd.to_numeric(
+        transacoes[original_value_column], errors="coerce"
+    ).to_numpy(dtype="float64")
+    if not np.isfinite(original_values).all() or (original_values < 0).any():
+        raise ValueError("Os valores originais das transações são inválidos.")
 
-    alertas = scores >= config.threshold
-
-    # Utilizamos o valor original, nÃ£o o valor apÃ³s Capping.
-    valores_originais = pd.to_numeric(
-        resultado["amount"],
-        errors="raise",
-    ).astype(float)
-
-    resultado["fraud_score"] = scores
-
-    resultado["fraud_alert"] = alertas
-
-    resultado["status_analise"] = np.where(
-        alertas,
-        "ALERTA",
-        "SEM_ALERTA",
-    )
-
-    resultado["valor_sinalizado"] = np.where(
-        alertas,
-        valores_originais,
-        0.0,
-    )
-
-    return resultado
+    alerts = scores >= config.threshold
+    result = transacoes.copy()
+    result["fraud_score"] = scores
+    result["fraud_alert"] = alerts
+    result["status_analise"] = np.where(alerts, "ALERTA", "SEM_ALERTA")
+    result["valor_sinalizado"] = np.where(alerts, original_values, 0.0)
+    return result
 
 
-def summarize_exposure(
-    resultado: pd.DataFrame,
-) -> dict[str, int | float]:
-    """Resume alertas e exposiÃ§Ã£o financeira sinalizada."""
+def summarize_exposure(resultado: pd.DataFrame) -> dict[str, int | float]:
+    """Resume alertas e exposição financeira sinalizada."""
 
-    colunas = {
-        "fraud_alert",
-        "valor_sinalizado",
-        "fraud_score",
-    }
-
-    ausentes = colunas - set(resultado.columns)
-
-    if ausentes:
-        raise ValueError(
-            f"Colunas ausentes: {sorted(ausentes)}"
-        )
+    required = {"fraud_alert", "valor_sinalizado", "fraud_score"}
+    missing = required - set(resultado.columns)
+    if missing:
+        raise ValueError(f"Colunas ausentes no resultado: {sorted(missing)}")
 
     total = int(len(resultado))
-
-    alertas = int(
-        resultado["fraud_alert"].astype(bool).sum()
-    )
-
-    exposicao = float(
-        resultado["valor_sinalizado"].sum()
-    )
-
-    score_medio = (
-        float(resultado["fraud_score"].mean())
-        if total
-        else 0.0
-    )
+    alerts = int(resultado["fraud_alert"].astype(bool).sum())
+    exposure = float(pd.to_numeric(resultado["valor_sinalizado"]).sum())
+    mean_score = float(resultado["fraud_score"].mean()) if total else 0.0
 
     return {
         "total_transacoes_analisadas": total,
-        "total_alertas": alertas,
-        "taxa_alertas": (
-            alertas / total if total else 0.0
-        ),
-        "exposicao_financeira_sinalizada": exposicao,
-        "score_medio_modelo": score_medio,
+        "total_alertas": alerts,
+        "taxa_alertas": alerts / total if total else 0.0,
+        "exposicao_financeira_sinalizada": exposure,
+        "score_medio_modelo": mean_score,
     }
+
 
 def load_model_artifacts(
     models_dir: str | Path | None = None,
-):
-    """Carrega o modelo LightGBM e suas configuraÃ§Ãµes salvas."""
+) -> tuple[lgb.Booster, FraudScoringConfig, dict[str, Any]]:
+    """Carrega o Booster .txt e os metadados, validando hash e contrato."""
 
     if models_dir is None:
-        raiz_projeto = Path(__file__).resolve().parents[2]
-        models_dir = raiz_projeto / "models"
-
+        project_root = Path(__file__).resolve().parents[2]
+        models_dir = project_root / "models"
     models_dir = Path(models_dir)
 
-    caminho_modelo = (
-        models_dir / "lightgbm_fraud_detector.joblib"
-    )
+    model_path = models_dir / MODEL_FILENAME
+    metadata_path = models_dir / METADATA_FILENAME
+    if not model_path.is_file():
+        raise FileNotFoundError(f"Modelo não encontrado: {model_path}")
+    if not metadata_path.is_file():
+        raise FileNotFoundError(f"Metadados não encontrados: {metadata_path}")
 
-    caminho_metadados = (
-        models_dir / "lightgbm_fraud_detector_metadata.json"
-    )
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata_features = metadata.get("features", [])
+    if list(metadata_features) != list(MODEL_FEATURES):
+        raise ValueError("A lista/ordem de features dos metadados é incompatível com o código.")
 
-    if not caminho_modelo.exists():
-        raise FileNotFoundError(
-            f"Modelo nÃ£o encontrado: {caminho_modelo}"
-        )
+    freeze = metadata.get("congelamento", {})
+    if freeze.get("status") != "CONGELADO":
+        raise ValueError("Os metadados não identificam o modelo como CONGELADO.")
+    if freeze.get("arquivo_modelo") != MODEL_FILENAME:
+        raise ValueError("O nome do arquivo do modelo não corresponde aos metadados.")
 
-    if not caminho_metadados.exists():
-        raise FileNotFoundError(
-            f"Metadados nÃ£o encontrados: {caminho_metadados}"
-        )
-
-    metadata = json.loads(
-        caminho_metadados.read_text(encoding="utf-8")
-    )
-
-    # Validar as features registradas.
-    features_metadata = metadata.get("features", [])
-
-    if list(features_metadata) != list(COLUNAS_MODELO):
+    expected_hash = freeze.get("sha256_modelo")
+    actual_hash = _sha256_file(model_path)
+    if not expected_hash or actual_hash.lower() != str(expected_hash).lower():
         raise ValueError(
-            "As features dos metadados nÃ£o correspondem "
-            "ao contrato do mÃ³dulo."
+            "Falha na integridade do modelo: SHA-256 do arquivo diferente dos metadados."
         )
 
-    # Recuperar os parÃ¢metros com precisÃ£o total.
-    config = FraudScoringConfig(
-        amount_cap_upper=float(
-            metadata["limite_superior_capping"]
-        ),
-        amount_bin_edges=tuple(
-            float(valor)
-            for valor in metadata["pontos_corte_binning"]
-        ),
-        threshold=float(
-            metadata["limiar_validacao"]
-        ),
-    )
+    threshold = float(freeze["limiar_selecionado"])
+    selection_threshold = float(metadata["selecao_limiar"]["limiar_candidato"])
+    if not np.isclose(threshold, selection_threshold, rtol=0, atol=1e-12):
+        raise ValueError("O limiar congelado diverge do limiar selecionado na validação.")
+    config = FraudScoringConfig(threshold=threshold)
 
-    # Carregar o modelo treinado.
-    modelo = joblib.load(caminho_modelo)
+    booster = lgb.Booster(model_file=str(model_path))
+    if booster.feature_name() != list(MODEL_FEATURES):
+        raise ValueError("O arquivo .txt do Booster contém features incompatíveis.")
 
-    features_modelo = getattr(
-        modelo,
-        "feature_name_",
-        None,
-    )
+    expected_iterations = int(freeze.get("melhor_iteracao", metadata.get("melhor_iteracao", 0)))
+    if expected_iterations and booster.num_trees() != expected_iterations:
+        raise ValueError(
+            "A quantidade de árvores do modelo não corresponde à melhor iteração registrada."
+        )
 
-    if features_modelo is not None:
-        if list(features_modelo) != list(COLUNAS_MODELO):
-            raise ValueError(
-                "O modelo salvo possui features incompatÃ­veis."
-            )
+    expected_lgb_version = metadata.get("versao_lightgbm")
+    if expected_lgb_version and lgb.__version__ != expected_lgb_version:
+        warnings.warn(
+            f"Metadados registram LightGBM {expected_lgb_version}, "
+            f"mas o ambiente está usando {lgb.__version__}. "
+            "Para reprodução, instale a versão registrada.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
 
-    print("Modelo LightGBM carregado.")
-    print("Limiar:", config.threshold)
-    print("Capping:", config.amount_cap_upper)
-    print("Features:", list(COLUNAS_MODELO))
+    return booster, config, metadata
 
-    return modelo, config, metadata
+
+# Alias temporário para reduzir quebras em imports existentes no projeto.
+preparar_features_lightgbm = preparar_features_lightgbm_v2

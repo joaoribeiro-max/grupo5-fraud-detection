@@ -21,6 +21,7 @@ TABLE = "workspace.gold_ml.gbm_transacoes"
 COLUMNS = [
     "id_transacao",
     "step",
+    "dia_absoluto",
     "eh_pagamento",
     "eh_deposito",
     "eh_debito",
@@ -28,14 +29,13 @@ COLUMNS = [
     "eh_transferencia",
     "valor",
     "destino_eh_comercio",
-    "qtd_recebimentos_anterior",
+    "qtd_recebimentos_destino_hist",
+    "qtd_recebimentos_destino_24h",
     "hora_do_dia",
     "eh_madrugada",
     "eh_manha",
     "eh_tarde",
     "eh_noite",
-    "dia_semana",
-    "eh_final_de_semana",
     "flag_fraude_sistema",
     "eh_fraude",
 ]
@@ -133,7 +133,8 @@ def iter_gold_ml_batches(
     Lê a Gold ML em lotes utilizando PyArrow.
 
     Filtra o intervalo temporal para evitar consultas
-    desnecessariamente grandes.
+    desnecessariamente grandes. Retorna também colunas auxiliares
+    da Gold ML; o scoring seleciona exclusivamente as 10 features V2.
     """
 
     if not isinstance(start_step, int) or not isinstance(end_step, int):
