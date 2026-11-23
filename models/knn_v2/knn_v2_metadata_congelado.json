@@ -1,0 +1,80 @@
+{
+  "modelo": "KNN V2",
+  "tabela_origem": "workspace.gold_ml.knn_transacoes",
+  "features": [
+    "eh_transferencia",
+    "eh_conta_nova",
+    "freq_destino_24h_norm",
+    "eh_rajada_destino",
+    "valor_log_norm",
+    "hora_sin",
+    "hora_cos"
+  ],
+  "target": "eh_fraude",
+  "razao_legitimas_por_fraude": 50,
+  "hiperparametros": {
+    "n_neighbors": 21,
+    "weights": "uniform",
+    "algorithm": "kd_tree",
+    "metric": "minkowski",
+    "p": 2,
+    "leaf_size": 40
+  },
+  "limiar": 0.47619047619047616,
+  "semente": 42,
+  "steps_treino": [
+    1,
+    520
+  ],
+  "steps_validacao": [
+    521,
+    631
+  ],
+  "steps_teste": [
+    632,
+    743
+  ],
+  "data_source_filter": "Somente saque e transferencia; eh_fraude, valor e hora_do_dia nao nulos na Gold.",
+  "gold_observacao": "A Gold KNN preserva a engenharia de features e a janela de historico definida no Databricks.",
+  "scaler_tipo": "StandardScaler",
+  "scaler_ajustado_em": "Todas as linhas do conjunto de treinamento (steps 1-520), somente features, sem target.",
+  "treino_registros_total": 2653729,
+  "treino_fraudes_total": 5781,
+  "treino_legitimas_total": 2647948,
+  "treino_registros_amostra": 294831,
+  "validacao_registros": 78701,
+  "teste_registros": 37979,
+  "metricas_validacao": {
+    "limiar": 0.47619047619047616,
+    "precision": 0.5368234250221828,
+    "recall": 0.5127118644067796,
+    "f1": 0.5244906805374946,
+    "average_precision": 0.5241347457669915,
+    "roc_auc": 0.9091498990213477,
+    "verdadeiros_positivos": 605,
+    "falsos_positivos": 522,
+    "verdadeiros_negativos": 76999,
+    "falsos_negativos": 575,
+    "total_alertas": 1127
+  },
+  "metricas_teste": {
+    "limiar": 0.47619047619047616,
+    "precision": 0.7583230579531443,
+    "recall": 0.49121405750798725,
+    "f1": 0.5962190984003878,
+    "average_precision": 0.617440058672805,
+    "roc_auc": 0.8918133524004199,
+    "verdadeiros_positivos": 615,
+    "falsos_positivos": 196,
+    "verdadeiros_negativos": 36531,
+    "falsos_negativos": 637,
+    "total_alertas": 811
+  },
+  "score_observacao": "predict_proba do KNN e score de votacao dos vizinhos; nao representa probabilidade calibrada de fraude.",
+  "comparacao_observacao": "Para comparar com LightGBM V2, usar exatamente os mesmos IDs do teste KNN.",
+  "python_version": "3.13.18",
+  "numpy_version": "2.4.6",
+  "pandas_version": "3.1.1",
+  "scikit_learn_version": "1.9.1",
+  "sha256_modelo": "43a6e622b1d9182e47ac0ab4ec813016c0195ab08d23bbab7ede09e4b3ba370a"
+}

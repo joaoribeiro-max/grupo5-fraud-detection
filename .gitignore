@@ -35,3 +35,10 @@ data/processed/
 .pytest_cache/
 # Backup local do carregador antigo
 /src/finops_ml/databricks_loader_backup.py
+
+# Pacotes locais de entrega e backups operacionais
+/_operacionalizacao/
+/knn_v2_artefatos_integracao.zip
+/lightgbm_v2_entrega_final_databricks.zip
+/operacionalizacao_lightgbm_v2.zip
+/operacionalizacao_lightgbm_v2_optimized.zip

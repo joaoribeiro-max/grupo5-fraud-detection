@@ -1,0 +1,17 @@
+{
+    "modelo": "KNN V2",
+    "origem_referencia": "Google Colab",
+    "ambiente_inferencia": "VS Code / Windows",
+    "registros_comparados": 37979,
+    "ids_sem_correspondencia": 0,
+    "scores_equivalentes": 37979,
+    "scores_diferentes": 0,
+    "alertas_equivalentes": 37979,
+    "alertas_diferentes": 0,
+    "steps_equivalentes": 37979,
+    "maior_diferenca_score": 0.0,
+    "tolerancia_score": 1e-12,
+    "limiar_congelado": 0.47619047619047616,
+    "classes_reais_validas": true,
+    "equivalencia_aprovada": true
+}
