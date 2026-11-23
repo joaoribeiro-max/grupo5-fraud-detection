@@ -53,8 +53,6 @@ O painel foi estruturado para oferecer uma leitura rápida e executiva (top-down
 
 O segundo painel foi desenvolvido para acompanhar os resultados da detecção automatizada de fraudes, permitindo visualizar indicadores de desempenho dos modelos de Machine Learning utilizados na análise das transações.
 
-A estrutura apresenta uma comparação entre dois algoritmos: **LightGBM** e **KNN (K-Nearest Neighbors)**, possibilitando acompanhar métricas de classificação e resultados relacionados à identificação de operações fraudulentas.
-
 ### 🎯 Indicadores de Desempenho — LightGBM
 
 O dashboard apresenta três métricas principais para avaliar a capacidade do modelo LightGBM na identificação de fraudes:
@@ -70,41 +68,22 @@ Esses indicadores permitem analisar não apenas a capacidade do modelo de identi
 O painel também apresenta indicadores relacionados ao volume de dados processados e às ocorrências identificadas:
 
 - **Total de Transações Analisadas:** `89,47 mil` — Quantidade de transações submetidas à análise do modelo.
-- **Total de Ocorrências:** `1,43 mil` — Quantidade total de ocorrências registradas no processo de detecção.
+- **Fraudes:** `1,25 mil` — Quantidade de fraudes reais submetidas à análise do modelo.
 
 ### 🔍 Análise de Detecção de Fraudes
 
-O gráfico de colunas apresenta a distribuição dos resultados da detecção de fraudes, segmentados em quatro categorias:
+O gráfico de colunas apresenta a distribuição dos resultados da detecção de fraudes, segmentados em duas categorias:
 
-- **Fraudes Reais:** `1,25 mil`.
 - **Falsos Negativos:** `631`.
 - **Verdadeiros Positivos:** `621`.
-- **Falsos Positivos:** `177`.
 
 Essas categorias permitem observar os diferentes resultados da classificação realizada pelo modelo:
 
 - **Verdadeiros Positivos (True Positives):** Transações fraudulentas identificadas corretamente pelo modelo.
 - **Falsos Negativos (False Negatives):** Transações fraudulentas classificadas incorretamente como legítimas.
-- **Falsos Positivos (False Positives):** Transações legítimas classificadas incorretamente como fraudulentas.
-- **Fraudes Reais:** Representação do volume de fraudes existentes utilizado na análise.
 
 A visualização auxilia na compreensão dos acertos e erros do processo de classificação, permitindo avaliar o comportamento do modelo diante das operações fraudulentas.
 
-### ⚖️ Comparação entre LightGBM e KNN
-
-O dashboard foi estruturado para apresentar os resultados dos dois algoritmos lado a lado:
-
-**LightGBM**
-- Apresenta indicadores de Precision, Recall e F1-Score.
-- Exibe o total de transações analisadas e o total de ocorrências.
-- Disponibiliza o gráfico de análise de detecção de fraudes.
-
-**KNN (K-Nearest Neighbors)**
-- Possui uma área dedicada à apresentação da precisão do modelo.
-- Inclui espaços para visualização do total de transações analisadas e do total de ocorrências.
-- Sua estrutura permite acompanhar os resultados e compará-los com os indicadores do LightGBM.
-
-**Observação:** Na versão apresentada do dashboard, os campos de indicadores do KNN e da precisão do agente de Machine Learning ainda não possuem valores selecionados para visualização. Dessa forma, os indicadores quantitativos disponíveis nesta documentação correspondem ao LightGBM, sem estabelecer uma conclusão comparativa de desempenho entre os dois algoritmos.
 
 ### 🧠 Precisão do Agente de Machine Learning
 
@@ -124,7 +103,7 @@ Essa visualização foi incorporada à estrutura do dashboard para possibilitar 
 
 - **Análise Automatizada com Machine Learning:**
   - O Dashboard de Automação apresenta os resultados de modelos de Machine Learning aplicados à identificação de transações fraudulentas.
-  - Os algoritmos contemplados na estrutura de análise são **LightGBM** e **KNN (K-Nearest Neighbors)**.
+  - Os algoritmos contemplados na estrutura de análise são **LightGBM**.
   - As métricas de Precision, Recall e F1-Score são utilizadas para acompanhar o desempenho do processo de classificação.
   - Os resultados são apresentados por meio de indicadores operacionais e gráficos de distribuição de classificações, permitindo avaliar a identificação correta de fraudes e os erros de classificação.
 
@@ -136,7 +115,7 @@ Essa visualização foi incorporada à estrutura do dashboard para possibilitar 
 
    [Acessar Dashboard Principal](https://dbc-97bd1f30-bee3.cloud.databricks.com/dashboardsv3/01f1e07c867b14f5b20870bf665632e9/published?o=7474645444335671)
 
-2. **Dashboard de Automação:** Dentro do ambiente Databricks, selecione a aba **Dash Automação**, localizada ao lado da aba **Dash principal**, para acessar os indicadores de Machine Learning.
+2. **Dashboard de Automação:** Dentro do ambiente Databricks, selecione a aba **Dashboard Automação**, localizada ao lado da aba **Dashboard principal**, para acessar os indicadores de Machine Learning.
 
 3. **Download em PDF:** Caso deseje, abra o dashboard, clique nos três pontos e selecione a opção de download em PDF.
 
